@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react"
-import { Chess } from "chess.js"
+import { Chess, type Square } from "chess.js"
 import { Chessboard } from "react-chessboard"
 import type { Difficulty, PlayerColor } from "./types"
 import { getBotMove } from "./bot"
@@ -47,25 +47,25 @@ const Room = ({ playerName, difficulty, gameMode, roomId }: RoomProps) => {
   async function initializeRoom() {
     try {
       // Try to get existing room data
-      const roomData = await window.storage.get(`room:${roomId}`, true)
+      const roomData = localStorage.getItem(`room:${roomId}`)
       
       if (!roomData) {
         // Create new room - I'm player 1 (white)
-        await window.storage.set(`room:${roomId}`, JSON.stringify({
+        localStorage.setItem(`room:${roomId}`, JSON.stringify({
           fen: chessGame.fen(),
           player1: playerName,
           player2: null,
           turn: "w"
-        }), true)
+        }))
         setMyColor("white")
         setWaitingForOpponent(true)
       } else {
         // Join existing room - I'm player 2 (black)
-        const room = JSON.parse(roomData.value)
+        const room = JSON.parse(roomData)
         
         if (!room.player2) {
           room.player2 = playerName
-          await window.storage.set(`room:${roomId}`, JSON.stringify(room), true)
+          localStorage.setItem(`room:${roomId}`, JSON.stringify(room))
           setMyColor("black")
           setOpponentName(room.player1)
           setWaitingForOpponent(false)
@@ -82,11 +82,11 @@ const Room = ({ playerName, difficulty, gameMode, roomId }: RoomProps) => {
 
   async function pollGameState() {
     try {
-      const roomData = await window.storage.get(`room:${roomId}`, true)
+      const roomData = localStorage.getItem(`room:${roomId}`)
       
       if (!roomData) return
       
-      const room = JSON.parse(roomData.value)
+      const room = JSON.parse(roomData)
       
       // Update opponent name if we're player 1 and player 2 joined
       if (myColor === "white" && room.player2 && !opponentName) {
@@ -106,14 +106,14 @@ const Room = ({ playerName, difficulty, gameMode, roomId }: RoomProps) => {
 
   async function updateRoomState(newFen: string) {
     try {
-      const roomData = await window.storage.get(`room:${roomId}`, true)
+      const roomData = localStorage.getItem(`room:${roomId}`)
       if (!roomData) return
       
-      const room = JSON.parse(roomData.value)
+      const room = JSON.parse(roomData)
       room.fen = newFen
       room.turn = chessGame.turn()
       
-      await window.storage.set(`room:${roomId}`, JSON.stringify(room), true)
+      localStorage.setItem(`room:${roomId}`, JSON.stringify(room))
     } catch (error) {
       console.error("Error updating room:", error)
     }
@@ -137,9 +137,9 @@ const Room = ({ playerName, difficulty, gameMode, roomId }: RoomProps) => {
   // Get move options for a square
   function getMoveOptions(square: string) {
     const moves = chessGame.moves({
-      square: square as any,
+      square: square as Square,
       verbose: true
-    }) as any[]
+    })
 
     if (moves.length === 0) {
       setOptionSquares({})
@@ -151,7 +151,7 @@ const Room = ({ playerName, difficulty, gameMode, roomId }: RoomProps) => {
     for (const move of moves) {
       newSquares[move.to] = {
         background:
-          chessGame.get(move.to) && chessGame.get(move.to)?.color !== chessGame.get(square)?.color
+          chessGame.get(move.to as Square) && chessGame.get(move.to as Square)?.color !== chessGame.get(square as Square)?.color
             ? "radial-gradient(circle, rgba(0,0,0,.1) 85%, transparent 85%)"
             : "radial-gradient(circle, rgba(0,0,0,.1) 25%, transparent 25%)",
         borderRadius: "50%"
@@ -192,9 +192,9 @@ const Room = ({ playerName, difficulty, gameMode, roomId }: RoomProps) => {
 
     // Square clicked to move to
     const moves = chessGame.moves({
-      square: moveFrom as any,
+      square: moveFrom as Square,
       verbose: true
-    }) as any[]
+    })
     
     const foundMove = moves.find((m) => m.from === moveFrom && m.to === square)
 
@@ -207,8 +207,8 @@ const Room = ({ playerName, difficulty, gameMode, roomId }: RoomProps) => {
     // Make the move
     try {
       chessGame.move({
-        from: moveFrom,
-        to: square,
+        from: moveFrom as Square,
+        to: square as Square,
         promotion: "q"
       })
     } catch {
@@ -241,8 +241,8 @@ const Room = ({ playerName, difficulty, gameMode, roomId }: RoomProps) => {
 
     try {
       chessGame.move({
-        from: sourceSquare,
-        to: targetSquare,
+        from: sourceSquare as Square,
+        to: targetSquare as Square,
         promotion: "q"
       })
 
@@ -275,7 +275,7 @@ const Room = ({ playerName, difficulty, gameMode, roomId }: RoomProps) => {
     position: chessPosition,
     customSquareStyles: optionSquares,
     arePiecesDraggable: canMove() && !chessGame.isGameOver(),
-    boardOrientation: myColor === "black" ? "black" : "white"
+    boardOrientation: (myColor || "white") as "white" | "black"
   }
 
   const opponent = gameMode === "pvbot" ? `Bot (${difficulty})` : (opponentName || "Waiting...")
